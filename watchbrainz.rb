@@ -28,10 +28,10 @@ def init_db(db)
       ArtistId VARCHAR(36) NOT NULL,
       Name TEXT NOT NULL,
       Active BOOLEAN NOT NULL DEFAULT 1,
-      PRIMARY KEY (ArtistId));
+      PRIMARY KEY (ArtistId))
     EOF
   db.execute <<-EOF
-    CREATE INDEX Active ON Artists (Active);
+    CREATE INDEX Active ON Artists (Active)
     EOF
   db.execute <<-EOF
     CREATE TABLE ReleaseGroups (
@@ -41,10 +41,10 @@ def init_db(db)
       Type TEXT NOT NULL,
       ReleaseDate VARCHAR(10) NOT NULL,
       AddTime INTEGER NOT NULL,
-      PRIMARY KEY (ReleaseGroupId));
+      PRIMARY KEY (ReleaseGroupId))
     EOF
   db.execute <<-EOF
-    CREATE INDEX AddTime ON ReleaseGroups (AddTime);
+    CREATE INDEX AddTime ON ReleaseGroups (AddTime)
     EOF
 end
 
