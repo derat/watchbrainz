@@ -6,6 +6,7 @@
 # Search for modules in the lib/ subdirectory.
 $:.unshift(File.dirname(__FILE__) + '/lib')
 
+require 'logger'
 require 'musicbrainz'
 require 'optparse'
 require 'sqlite3'
@@ -30,11 +31,45 @@ CREATE TABLE ReleaseGroups (
 CREATE INDEX AddTime ON ReleaseGroups (AddTime);
 =end
 
+$logger = Logger.new($stderr)
+
+def get_year(date)
+  date.year == 2030 && date.month == 12 && date.day == 31 ? 'present' : date.year.to_s
+end
+
+def get_artist_id_from_database(db, artist_name)
+  db.execute('SELECT ArtistId FROM Artists WHERE Name = ?', artist_name).each {|row| return row[0] }
+  nil
+end
+
 def add_artist(db, artist_name)
+  artist_id = get_artist_id_from_database(db, artist_name)
+  if artist_id
+    db.execute('UPDATE Artists SET Active = 1 WHERE ArtistId = ?', artist_id)
+    $logger.info("Set artist \"#{artist_name}\" to active")
+    return true
+  end
+
   artist = MusicBrainz::Artist.find_by_name(artist_name)
-  return false if !artist
+  if !artist
+    $logger.warn("Unable to find artist \"#{artist_name}\"")
+    return false
+  end
+
   db.execute('INSERT INTO Artists(ArtistId, Name, Active) VALUES(?, ?, 1)', artist.id, artist_name)
+  $logger.info("Inserted artist \"#{artist_name}\" (#{artist.type} from #{artist.country} " +
+               "active #{get_year(artist.date_begin)}-#{get_year(artist.date_end)})")
   true
+end
+
+def remove_artist(db, artist_name)
+  artist_id = get_artist_id_from_database(db, artist_name)
+  if !artist_id
+    $logger.warn("Artist \"#{artist_name}\" not present in database")
+  else
+    db.execute('UPDATE Artists SET Active = 0 WHERE Name = ?', artist_name)
+    $logger.info("Set artist \"#{artist_name}\" to inactive")
+  end
 end
 
 def get_new_releases(db)
@@ -51,25 +86,26 @@ def get_new_releases(db)
                  '(ReleaseGroupId, ArtistId, Title, Type, ReleaseDate, AddTime) ' +
                  'VALUES(?, ?, ?, ?, ?, ?)',
                  release_group.id, artist_id, title, release_group.type, release_group.first_release_date.strftime('%Y-%m-%d'), Time.now.to_i)
+      $logger.info("Added release group \"#{title}\" for artist #{artist_name}")
     end
   end
 end
 
+def read_artists(arg)
+  arg ? [arg] : STDIN.read.split("\n").map {|a| a.strip }
+end
+
 def main
   db_filename = 'watchbrainz.db'
-  add_artists_from_stdin = false
-  artist_to_add = nil
+  artists_to_add = []
+  artists_to_remove = []
 
   opts = OptionParser.new
   opts.banner = "Usage: #$0 [options]"
-  opts.on('--add [ARTIST]', 'Artist to add (reads from stdin without argument)') do |artist|
-    if artist
-      artist_to_add = artist
-    else
-      add_artists_from_stdin = true
-    end
-  end
+  opts.on('--add [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_add = read_artists(v) }
   opts.on('--db FILE', 'sqlite3 database filename') { |db_filename| }
+  opts.on('--quiet', 'Suppress informational logging') { $logger.level = Logger::WARN }
+  opts.on('--remove [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
   opts.parse!
 
   MusicBrainz.configure do |c|
@@ -80,18 +116,9 @@ def main
 
   db = SQLite3::Database.new(db_filename)
 
-  artists_to_add = []
-  if add_artists_from_stdin
-    artists_to_add = STDIN.read.split("\n").map {|a| a.strip }
-  elsif artist_to_add
-    artists_to_add << artist_to_add
-  end
-
-  if !artists_to_add.empty?
-    artists_to_add.each {|artist| add_artist(db, artist) or abort("Unable to add artist \"#{artist}\"") }
-  else
-    get_new_releases(db)
-  end
+  artists_to_add.each {|a| add_artist(db, a) }
+  artists_to_remove.each {|a| remove_artist(db, a) }
+  #get_new_releases(db)
 
   db.close
 end
