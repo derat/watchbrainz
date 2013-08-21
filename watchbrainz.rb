@@ -78,6 +78,10 @@ def remove_artist(db, artist_name)
   end
 end
 
+def list_active_artists(db)
+  db.execute('SELECT Name FROM Artists WHERE Active = 1 ORDER BY Name ASC') {|r| puts r[0] }
+end
+
 def get_new_releases(db)
   db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1') do |row|
     artist_id, artist_name = row
@@ -106,12 +110,14 @@ def main
   artists_to_add = []
   artists_to_remove = []
   should_init = false
+  should_list = false
 
   opts = OptionParser.new
   opts.banner = "Usage: #$0 [options]"
   opts.on('--add [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_add = read_artists(v) }
   opts.on('--db FILE', 'sqlite3 database filename') { |db_filename| }
   opts.on('--init', 'Initialize database') { should_init = true }
+  opts.on('--list', 'List active artists') { should_list = true }
   opts.on('--quiet', 'Suppress informational logging') { $logger.level = Logger::WARN }
   opts.on('--remove [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
   opts.parse!
@@ -127,6 +133,8 @@ def main
 
   artists_to_add.each {|a| add_artist(db, a) }
   artists_to_remove.each {|a| remove_artist(db, a) }
+  list_active_artists(db) if should_list
+
   #get_new_releases(db)
 
   db.close
