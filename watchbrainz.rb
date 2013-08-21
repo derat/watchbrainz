@@ -11,26 +11,6 @@ require 'musicbrainz'
 require 'optparse'
 require 'sqlite3'
 
-# Database schema.
-=begin
-CREATE TABLE Artists (
-  ArtistId VARCHAR(36) NOT NULL,
-  Name TEXT NOT NULL,
-  Active BOOLEAN NOT NULL DEFAULT 1,
-  PRIMARY KEY (ArtistId));
-CREATE INDEX Active ON Artists (Active);
-
-CREATE TABLE ReleaseGroups (
-  ReleaseGroupId VARCHAR(36) NOT NULL,
-  ArtistId VARCHAR(36) NOT NULL,
-  Title TEXT NOT NULL,
-  Type TEXT NOT NULL,
-  ReleaseDate VARCHAR(10) NOT NULL,
-  AddTime INTEGER NOT NULL,
-  PRIMARY KEY (ReleaseGroupId));
-CREATE INDEX AddTime ON ReleaseGroups (AddTime);
-=end
-
 $logger = Logger.new($stderr)
 
 def get_year(date)
@@ -40,6 +20,32 @@ end
 def get_artist_id_from_database(db, artist_name)
   db.execute('SELECT ArtistId FROM Artists WHERE Name = ?', artist_name).each {|row| return row[0] }
   nil
+end
+
+def init_db(db)
+  db.execute <<-EOF
+    CREATE TABLE Artists (
+      ArtistId VARCHAR(36) NOT NULL,
+      Name TEXT NOT NULL,
+      Active BOOLEAN NOT NULL DEFAULT 1,
+      PRIMARY KEY (ArtistId));
+    EOF
+  db.execute <<-EOF
+    CREATE INDEX Active ON Artists (Active);
+    EOF
+  db.execute <<-EOF
+    CREATE TABLE ReleaseGroups (
+      ReleaseGroupId VARCHAR(36) NOT NULL,
+      ArtistId VARCHAR(36) NOT NULL,
+      Title TEXT NOT NULL,
+      Type TEXT NOT NULL,
+      ReleaseDate VARCHAR(10) NOT NULL,
+      AddTime INTEGER NOT NULL,
+      PRIMARY KEY (ReleaseGroupId));
+    EOF
+  db.execute <<-EOF
+    CREATE INDEX AddTime ON ReleaseGroups (AddTime);
+    EOF
 end
 
 def add_artist(db, artist_name)
@@ -99,11 +105,13 @@ def main
   db_filename = 'watchbrainz.db'
   artists_to_add = []
   artists_to_remove = []
+  should_init = false
 
   opts = OptionParser.new
   opts.banner = "Usage: #$0 [options]"
   opts.on('--add [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_add = read_artists(v) }
   opts.on('--db FILE', 'sqlite3 database filename') { |db_filename| }
+  opts.on('--init', 'Initialize database') { should_init = true }
   opts.on('--quiet', 'Suppress informational logging') { $logger.level = Logger::WARN }
   opts.on('--remove [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
   opts.parse!
@@ -115,6 +123,7 @@ def main
   end
 
   db = SQLite3::Database.new(db_filename)
+  init_db(db) if should_init
 
   artists_to_add.each {|a| add_artist(db, a) }
   artists_to_remove.each {|a| remove_artist(db, a) }
