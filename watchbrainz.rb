@@ -9,12 +9,23 @@ $:.unshift(File.dirname(__FILE__) + '/lib')
 require 'logger'
 require 'musicbrainz'
 require 'optparse'
+require 'rss'
 require 'sqlite3'
+
+FEED_SIZE = 20
 
 $logger = Logger.new($stderr)
 
+def date_is_unset?(date)
+  date.year == 2030 && date.month == 12 && date.day == 31
+end
+
+def time_to_rfc3339(time)
+  time.utc.strftime('%FT%TZ')
+end
+
 def get_year(date)
-  date.year == 2030 && date.month == 12 && date.day == 31 ? 'present' : date.year.to_s
+  date_is_unset?(date) ? 'present' : date.year.to_s
 end
 
 def get_artist_id_from_database(db, artist_name)
@@ -101,6 +112,35 @@ def get_new_releases(db)
   end
 end
 
+def write_feed(db, filename)
+  rss = RSS::Maker.make('atom') do |maker|
+    maker.channel.author = 'Daniel Erat'
+    maker.channel.updated = time_to_rfc3339(Time.now)
+    maker.channel.title = 'New Music Releases'
+    maker.channel.link = 'http://www.erat.org/'
+    maker.channel.description = 'Release groups recently added to MusicBrainz'
+    maker.channel.id = 'http://www.erat.org/'
+
+    db.execute('SELECT a.ArtistId, a.Name, r.ReleaseGroupId, r.Title, r.Type, r.ReleaseDate, r.AddTime ' +
+               'FROM Artists a INNER JOIN ReleaseGroups r ON(a.ArtistId = r.ArtistId) ' +
+               'WHERE a.Active = 1 ' +
+               'ORDER BY r.AddTime DESC ' +
+               'LIMIT ?', FEED_SIZE).each do |artist_id, name, release_group_id, title, type, release_date, add_time|
+      artist_url = "https://musicbrainz.org/artist/#{artist_id}"
+      release_group_url = "https://musicbrainz.org/release-group/#{release_group_id}"
+      maker.items.new_item do |item|
+        item.id = release_group_id
+        item.title = "#{release_date}: #{name} - #{title}"
+        item.link = release_group_url
+        item.updated = time_to_rfc3339(Time.at(add_time))
+        # TODO: No idea how to include content in RSS::Maker. Zero docs.
+        # "<a href=\"#{artist_url}\">#{name}</a> - <a href=\"#{release_group_url}\">#{title}</a>"
+      end
+    end
+  end
+  File.open(filename, 'w') {|f| f.write(rss) }
+end
+
 def read_artists(arg)
   arg ? [arg] : STDIN.read.split("\n").map {|a| a.strip }
 end
@@ -136,6 +176,7 @@ def main
   list_active_artists(db) if should_list
 
   #get_new_releases(db)
+  write_feed(db, 'releases.xml')
 
   db.close
 end
