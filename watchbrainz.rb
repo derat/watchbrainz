@@ -10,7 +10,9 @@ require 'logger'
 require 'musicbrainz'
 require 'optparse'
 require 'rss'
+require 'rss_cdata'
 require 'sqlite3'
+require 'uri'
 
 FEED_SIZE = 20
 
@@ -113,28 +115,47 @@ def get_new_releases(db)
 end
 
 def write_feed(db, filename)
-  rss = RSS::Maker.make('atom') do |maker|
+  # Using RSS 1.0 instead of Atom because Ruby's rss module has close to
+  # zero documentation and is unreadable/uncommented, and the only example
+  # I can find on the Web of attaching content to an item involves patching
+  # the module and writing an RSS 1.0 feed.
+  rss = RSS::Maker.make('1.0') do |maker|
     maker.channel.author = 'Daniel Erat'
     maker.channel.updated = time_to_rfc3339(Time.now)
     maker.channel.title = 'New Music Releases'
     maker.channel.link = 'http://www.erat.org/'
     maker.channel.description = 'Release groups recently added to MusicBrainz'
     maker.channel.id = 'http://www.erat.org/'
+    maker.channel.about = 'Seriously, "about" is a required field in RSS 1.0?'
 
     db.execute('SELECT a.ArtistId, a.Name, r.ReleaseGroupId, r.Title, r.Type, r.ReleaseDate, r.AddTime ' +
                'FROM Artists a INNER JOIN ReleaseGroups r ON(a.ArtistId = r.ArtistId) ' +
                'WHERE a.Active = 1 ' +
                'ORDER BY r.AddTime DESC ' +
                'LIMIT ?', FEED_SIZE).each do |artist_id, name, release_group_id, title, type, release_date, add_time|
+      release_date = Date.parse(release_date)
+      release_date_str = date_is_unset?(release_date) ? 'Unknown' : release_date.strftime('%Y-%m-%d')
+      release_date_str_no_dash = date_is_unset?(release_date) ? 'Unknown' : release_date.strftime('%Y%m%d')
       artist_url = "https://musicbrainz.org/artist/#{artist_id}"
       release_group_url = "https://musicbrainz.org/release-group/#{release_group_id}"
+
+      calendar_link = date_is_unset?(release_date) || release_date < Date.today ? '' :
+        "<a href=\"http://www.google.com/calendar/event?action=TEMPLATE" +
+        "&text=" + URI.escape("#{name} - #{title}") +
+        "&dates=#{release_date_str_no_dash}/#{release_date_str_no_dash}" +
+        "&details=" + URI.escape("#{release_group_url}") +
+        "&location=&trp=false&sprop=&sprop=name:\" target=\"_blank\">" +
+        "<img src=\"//www.google.com/calendar/images/ext/gc_button1.gif\" border=0></a>"
+
       maker.items.new_item do |item|
         item.id = release_group_id
-        item.title = "#{release_date}: #{name} - #{title}"
+        item.title = "#{release_date_str}: #{name} - #{title}"
         item.link = release_group_url
         item.updated = time_to_rfc3339(Time.at(add_time))
-        # TODO: No idea how to include content in RSS::Maker. Zero docs.
-        # "<a href=\"#{artist_url}\">#{name}</a> - <a href=\"#{release_group_url}\">#{title}</a>"
+        item.content_encoded = <<-EOF
+          <h3>#{release_date_str}: <a href="#{artist_url}">#{name}</a> - <a href="#{release_group_url}">#{title}</a></h3>
+          #{calendar_link}
+          EOF
       end
     end
   end
