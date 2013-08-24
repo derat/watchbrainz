@@ -16,6 +16,8 @@ require 'uri'
 
 FEED_SIZE = 20
 
+FEED_URL = 'http://www.erat.org/'
+
 $logger = Logger.new($stderr)
 
 def date_is_unset?(date)
@@ -123,9 +125,9 @@ def write_feed(db, filename)
     maker.channel.author = 'Daniel Erat'
     maker.channel.updated = time_to_rfc3339(Time.now)
     maker.channel.title = 'New Music Releases'
-    maker.channel.link = 'http://www.erat.org/'
+    maker.channel.link = FEED_URL
     maker.channel.description = 'Release groups recently added to MusicBrainz'
-    maker.channel.id = 'http://www.erat.org/'
+    maker.channel.id = FEED_URL
     maker.channel.about = 'Seriously, "about" is a required field in RSS 1.0?'
 
     db.execute('SELECT a.ArtistId, a.Name, r.ReleaseGroupId, r.Title, r.Type, r.ReleaseDate, r.AddTime ' +
@@ -158,6 +160,15 @@ def write_feed(db, filename)
           EOF
       end
     end
+
+    if maker.items.empty?
+      maker.items.new_item do |item|
+        item.id = FEED_URL
+        item.title = "No releases yet"
+        item.link = FEED_URL
+        item.updated = time_to_rfc3339(Time.now)
+      end
+    end
   end
   File.open(filename, 'w') {|f| f.write(rss) }
 end
@@ -168,6 +179,7 @@ end
 
 def main
   db_filename = 'watchbrainz.db'
+  rss_filename = 'releases.xml'
   artists_to_add = []
   artists_to_remove = []
   should_init = false
@@ -176,9 +188,10 @@ def main
   opts = OptionParser.new
   opts.banner = "Usage: #$0 [options]"
   opts.on('--add [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_add = read_artists(v) }
-  opts.on('--db FILE', 'sqlite3 database filename') { |db_filename| }
+  opts.on('--db FILE', 'sqlite3 database filename') {|v| db_filename = v }
   opts.on('--init', 'Initialize database') { should_init = true }
   opts.on('--list', 'List active artists') { should_list = true }
+  opts.on('--out FILE', 'File to which RSS data should be written') {|v| rss_filename = v }
   opts.on('--quiet', 'Suppress informational logging') { $logger.level = Logger::WARN }
   opts.on('--remove [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
   opts.parse!
@@ -192,12 +205,15 @@ def main
   db = SQLite3::Database.new(db_filename)
   init_db(db) if should_init
 
+  if should_list
+    list_active_artists(db)
+    exit(0)
+  end
+
   artists_to_add.each {|a| add_artist(db, a) }
   artists_to_remove.each {|a| remove_artist(db, a) }
-  list_active_artists(db) if should_list
-
-  #get_new_releases(db)
-  write_feed(db, 'releases.xml')
+  get_new_releases(db)
+  write_feed(db, rss_filename)
 
   db.close
 end
