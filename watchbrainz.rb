@@ -155,8 +155,8 @@ def write_feed(db, filename)
         item.link = release_group_url
         item.updated = time_to_rfc3339(Time.at(add_time))
         item.content_encoded = <<-EOF
-          <h3>#{release_date_str}: <a href="#{artist_url}">#{name}</a> - <a href="#{release_group_url}">#{title}</a></h3>
-          <p>#{type} added at #{Time.at(add_time).ctime}
+          #{release_date_str}: <a href="#{artist_url}">#{name}</a> - <a href="#{release_group_url}">#{title}</a><br>
+          #{type} added at #{Time.at(add_time).ctime}<br>
           #{calendar_link}
           EOF
       end
@@ -185,6 +185,7 @@ def main
   artists_to_remove = []
   should_init = false
   should_list = false
+  should_update = true
 
   opts = OptionParser.new
   opts.banner = "Usage: #$0 [options]"
@@ -192,6 +193,7 @@ def main
   opts.on('--db FILE', 'sqlite3 database filename') {|v| db_filename = v }
   opts.on('--init', 'Initialize database') { should_init = true }
   opts.on('--list', 'List active artists') { should_list = true }
+  opts.on('--no-update', 'Don\'t fetch updated releases') { should_update = false }
   opts.on('--out FILE', 'File to which RSS data should be written') {|v| rss_filename = v }
   opts.on('--quiet', 'Suppress informational logging') { $logger.level = Logger::WARN }
   opts.on('--remove [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
@@ -213,8 +215,11 @@ def main
 
   artists_to_add.each {|a| add_artist(db, a) }
   artists_to_remove.each {|a| remove_artist(db, a) }
-  get_new_releases(db)
-  write_feed(db, rss_filename)
+
+  if should_update
+    get_new_releases(db)
+    write_feed(db, rss_filename)
+  end
 
   db.close
 end
