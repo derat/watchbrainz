@@ -142,7 +142,7 @@ def write_feed(db, filename)
       release_group_url = "https://musicbrainz.org/release-group/#{release_group_id}"
 
       calendar_link = date_is_unset?(release_date) || release_date < Date.today ? '' :
-        "<a href=\"http://www.google.com/calendar/event?action=TEMPLATE" +
+        "<p><a href=\"http://www.google.com/calendar/event?action=TEMPLATE" +
         "&text=" + URI.escape("#{name} - #{title}") +
         "&dates=#{release_date_str_no_dash}/#{release_date_str_no_dash}" +
         "&details=" + URI.escape("#{release_group_url}") +
@@ -156,6 +156,7 @@ def write_feed(db, filename)
         item.updated = time_to_rfc3339(Time.at(add_time))
         item.content_encoded = <<-EOF
           <h3>#{release_date_str}: <a href="#{artist_url}">#{name}</a> - <a href="#{release_group_url}">#{title}</a></h3>
+          <p>#{type} added at #{Time.at(add_time).ctime}
           #{calendar_link}
           EOF
       end
