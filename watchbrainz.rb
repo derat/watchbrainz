@@ -79,7 +79,7 @@ def add_artist(db, artist_name)
 
   db.execute('INSERT INTO Artists(ArtistId, Name, Active) VALUES(?, ?, 1)', artist.id, artist_name)
   $logger.info("Inserted artist \"#{artist_name}\" (#{artist.type} from #{artist.country} " +
-               "active #{get_year(artist.date_begin)}-#{get_year(artist.date_end)})")
+               "#{get_year(artist.date_begin)}-#{get_year(artist.date_end)})")
   true
 end
 
@@ -98,13 +98,12 @@ def list_active_artists(db)
 end
 
 def get_new_releases(db)
+  known_release_group_ids = db.execute('SELECT ReleaseGroupId FROM ReleaseGroups').map {|r| r[0] }
   db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1') do |row|
     artist_id, artist_name = row
     artist = MusicBrainz::Artist.find(artist_id)
-    known_release_group_ids = db.execute('SELECT ReleaseGroupId FROM ReleaseGroups WHERE ArtistId = ?', artist_id).map {|r| r[0] }
     artist.release_groups.each do |release_group|
       next if !known_release_group_ids.grep(release_group.id).empty?
-
       title = release_group.title
       title += " (#{release_group.desc})" if !release_group.desc.empty?
       db.execute('INSERT INTO ReleaseGroups ' +
@@ -112,6 +111,7 @@ def get_new_releases(db)
                  'VALUES(?, ?, ?, ?, ?, ?)',
                  release_group.id, artist_id, title, release_group.type, release_group.first_release_date.strftime('%Y-%m-%d'), Time.now.to_i)
       $logger.info("Added release group \"#{title}\" for artist #{artist_name}")
+      known_release_group_ids << release_group.id
     end
   end
 end
