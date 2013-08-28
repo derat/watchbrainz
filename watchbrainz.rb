@@ -80,6 +80,9 @@ def add_artist(db, artist_name)
   db.execute('INSERT INTO Artists(ArtistId, Name, Active) VALUES(?, ?, 1)', artist.id, artist_name)
   $logger.info("Inserted artist \"#{artist_name}\" (#{artist.type} from #{artist.country} " +
                "#{get_year(artist.date_begin)}-#{get_year(artist.date_end)})")
+
+  # Insert the artist's existing releases with a 0 timestamp so they won't drown out any new releases from other artists.
+  get_new_releases_for_artist(db, artist.id, artist_name, true)
   true
 end
 
@@ -97,23 +100,24 @@ def list_active_artists(db)
   db.execute('SELECT Name FROM Artists WHERE Active = 1 ORDER BY Name ASC') {|r| puts r[0] }
 end
 
-def get_new_releases(db)
+def get_new_releases_for_artist(db, artist_id, artist_name, new_artist)
   known_release_group_ids = db.execute('SELECT ReleaseGroupId FROM ReleaseGroups').map {|r| r[0] }
-  db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1') do |row|
-    artist_id, artist_name = row
-    artist = MusicBrainz::Artist.find(artist_id)
-    artist.release_groups.each do |release_group|
-      next if !known_release_group_ids.grep(release_group.id).empty?
-      title = release_group.title
-      title += " (#{release_group.desc})" if !release_group.desc.empty?
-      db.execute('INSERT INTO ReleaseGroups ' +
-                 '(ReleaseGroupId, ArtistId, Title, Type, ReleaseDate, AddTime) ' +
-                 'VALUES(?, ?, ?, ?, ?, ?)',
-                 release_group.id, artist_id, title, release_group.type, release_group.first_release_date.strftime('%Y-%m-%d'), Time.now.to_i)
-      $logger.info("Added release group \"#{title}\" for artist #{artist_name}")
-      known_release_group_ids << release_group.id
-    end
+  MusicBrainz::Artist.find(artist_id).release_groups.each do |release_group|
+    next if !known_release_group_ids.grep(release_group.id).empty?
+    title = release_group.title
+    title += " (#{release_group.desc})" if !release_group.desc.empty?
+    add_time = new_artist ? 0 : Time.now.to_i
+    db.execute('INSERT INTO ReleaseGroups ' +
+               '(ReleaseGroupId, ArtistId, Title, Type, ReleaseDate, AddTime) ' +
+               'VALUES(?, ?, ?, ?, ?, ?)',
+               release_group.id, artist_id, title, release_group.type, release_group.first_release_date.strftime('%Y-%m-%d'), add_time)
+    $logger.info("Added release group \"#{title}\" for artist #{artist_name}")
+    known_release_group_ids << release_group.id
   end
+end
+
+def get_all_new_releases(db)
+  db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1') {|row| get_new_releases_for_artist(db, row[0], row[1], false) }
 end
 
 def write_feed(db, filename)
@@ -185,7 +189,6 @@ def main
   artists_to_remove = []
   should_init = false
   should_list = false
-  should_update = true
 
   opts = OptionParser.new
   opts.banner = "Usage: #$0 [options]"
@@ -193,7 +196,6 @@ def main
   opts.on('--db FILE', 'sqlite3 database filename') {|v| db_filename = v }
   opts.on('--init', 'Initialize database') { should_init = true }
   opts.on('--list', 'List active artists') { should_list = true }
-  opts.on('--no-update', 'Don\'t fetch updated releases') { should_update = false }
   opts.on('--out FILE', 'File to which RSS data should be written') {|v| rss_filename = v }
   opts.on('--quiet', 'Suppress informational logging') { $logger.level = Logger::WARN }
   opts.on('--remove [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
@@ -215,11 +217,8 @@ def main
 
   artists_to_add.each {|a| add_artist(db, a) }
   artists_to_remove.each {|a| remove_artist(db, a) }
-
-  if should_update
-    get_new_releases(db)
-    write_feed(db, rss_filename)
-  end
+  get_all_new_releases(db) if artists_to_add.empty? && artists_to_remove.empty?
+  write_feed(db, rss_filename)
 
   db.close
 end
