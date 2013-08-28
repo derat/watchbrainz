@@ -159,8 +159,11 @@ def write_feed(db, filename)
         item.link = release_group_url
         item.updated = time_to_rfc3339(Time.at(add_time))
         item.content_encoded = <<-EOF
-          #{release_date_str}: <a href="#{artist_url}">#{name}</a> - <a href="#{release_group_url}">#{title}</a><br>
-          #{type} added at #{Time.at(add_time).ctime}<br>
+          <b>Artist:</b> <a href="#{artist_url}">#{name}</a><br>
+          <b>Title:</b> <a href="#{release_group_url}">#{title}</a><br>
+          <b>Type:</b> #{type}<br>
+          <b>Release date:</b> #{release_date_str}<br>
+          <b>Added:</b> #{Time.at(add_time).ctime}<br>
           #{calendar_link}
           EOF
       end
