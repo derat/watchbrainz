@@ -201,7 +201,7 @@ def main
   opts.on('--list', 'List active artists') { should_list = true }
   opts.on('--out FILE', 'File to which RSS data should be written') {|v| rss_filename = v }
   opts.on('--quiet', 'Suppress informational logging') { $logger.level = Logger::WARN }
-  opts.on('--remove [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
+  opts.on('--remove [ARTIST]', 'Artist to remove (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
   opts.parse!
 
   MusicBrainz.configure do |c|
