@@ -142,13 +142,14 @@ def write_feed(db, filename)
       release_date = Date.parse(release_date)
       release_date_str = date_is_unset?(release_date) ? 'Unknown' : release_date.strftime('%Y-%m-%d')
       release_date_str_no_dash = date_is_unset?(release_date) ? 'Unknown' : release_date.strftime('%Y%m%d')
+      release_date_end_str_no_dash = date_is_unset?(release_date) ? 'Unknown' : (release_date + 1).strftime('%Y%m%d')
       artist_url = "https://musicbrainz.org/artist/#{artist_id}"
       release_group_url = "https://musicbrainz.org/release-group/#{release_group_id}"
 
       calendar_link = date_is_unset?(release_date) || release_date < Date.today ? '' :
         "<p><a href=\"http://www.google.com/calendar/event?action=TEMPLATE" +
         "&text=" + URI.escape("#{name} - #{title}") +
-        "&dates=#{release_date_str_no_dash}/#{release_date_str_no_dash}" +
+        "&dates=#{release_date_str_no_dash}/#{release_date_end_str_no_dash}" +
         "&details=" + URI.escape("#{release_group_url}") +
         "&location=&trp=false&sprop=&sprop=name:\" target=\"_blank\">" +
         "<img src=\"//www.google.com/calendar/images/ext/gc_button1.gif\" border=0></a>"
