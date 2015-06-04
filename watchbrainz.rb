@@ -143,8 +143,7 @@ def write_feed(db, filename)
                'WHERE a.Active = 1 ' +
                'AND r.ReleaseDate >= ? ' +
                'ORDER BY r.AddTime DESC ' +
-               'LIMIT ?', (Date.today() - MAX_AGE_DAYS).to_s, FEED_SIZE).each
-    do |artist_id, name, release_group_id, title, type, release_date, add_time|
+               'LIMIT ?', (Date.today() - MAX_AGE_DAYS).to_s, FEED_SIZE).each do |artist_id, name, release_group_id, title, type, release_date, add_time|
       release_date = Date.parse(release_date)
       release_date_str = date_is_unset?(release_date) ? 'Unknown' : release_date.strftime('%Y-%m-%d')
       release_date_str_no_dash = date_is_unset?(release_date) ? 'Unknown' : release_date.strftime('%Y%m%d')
