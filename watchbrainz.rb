@@ -107,7 +107,7 @@ end
 def get_new_releases_for_artist(db, artist_id, artist_name, new_artist)
   known_release_group_ids = db.execute('SELECT ReleaseGroupId FROM ReleaseGroups').map {|r| r[0] }
   artist = MusicBrainz::Artist.find(artist_id)
-  if !artist
+  if !artist || !artist.release_groups
     $logger.warn("Failed to fetch artist #{artist_name} (#{artist_id}) from MusicBrainz")
     return
   end
