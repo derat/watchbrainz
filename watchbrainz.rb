@@ -22,6 +22,9 @@ FEED_URL = 'http://www.erat.org/'
 # Skip release groups released more than this many days in the past.
 MAX_AGE_DAYS = 5 * 365
 
+# Maximum number of retries per artist.
+NUM_RETRIES = 3
+
 $logger = Logger.new($stderr)
 
 def date_is_unset?(date)
@@ -105,12 +108,16 @@ def list_active_artists(db)
 end
 
 def get_new_releases_for_artist(db, artist_id, artist_name, new_artist)
-  known_release_group_ids = db.execute('SELECT ReleaseGroupId FROM ReleaseGroups').map {|r| r[0] }
-  artist = MusicBrainz::Artist.find(artist_id)
+  NUM_RETRIES.times do
+    artist = MusicBrainz::Artist.find(artist_id)
+    break if artist && artist.release_groups
+  end
   if !artist || !artist.release_groups
     $logger.warn("Failed to fetch artist #{artist_name} (#{artist_id}) from MusicBrainz")
     return
   end
+
+  known_release_group_ids = db.execute('SELECT ReleaseGroupId FROM ReleaseGroups').map {|r| r[0] }
   artist.release_groups.each do |release_group|
     next if !known_release_group_ids.grep(release_group.id).empty?
     title = release_group.title
