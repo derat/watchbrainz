@@ -108,6 +108,7 @@ def list_active_artists(db)
 end
 
 def get_new_releases_for_artist(db, artist_id, artist_name, new_artist)
+  artist = nil
   NUM_RETRIES.times do
     artist = MusicBrainz::Artist.find(artist_id)
     break if artist && artist.release_groups
