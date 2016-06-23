@@ -112,7 +112,7 @@ def get_new_releases_for_artist(db, artist_id, artist_name, new_artist)
   NUM_RETRIES.times do
     begin
       artist = MusicBrainz::Artist.find(artist_id)
-    rescue Errno::ETIMEDOUT
+    rescue Exception
     end
     break if artist && artist.release_groups
   end
