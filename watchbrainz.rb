@@ -17,7 +17,7 @@ require 'uri'
 
 FEED_SIZE = 20
 
-FEED_URL = 'http://www.erat.org/'
+FEED_URL = 'https://dynamic.erat.org/rss/music.xml'
 
 # Skip release groups released more than this many days in the past.
 MAX_AGE_DAYS = 5 * 365
