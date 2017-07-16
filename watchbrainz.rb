@@ -26,6 +26,7 @@ MAX_AGE_DAYS = 5 * 365
 NUM_RETRIES = 3
 
 $logger = Logger.new($stderr)
+$logger.datetime_format = '%Y-%m-%d %H:%M:%S'
 
 def date_is_unset?(date)
   date.year == 2030 && date.month == 12 && date.day == 31
@@ -126,12 +127,13 @@ def get_new_releases_for_artist(db, artist_id, artist_name, new_artist)
     next if !known_release_group_ids.grep(release_group.id).empty?
     title = release_group.title
     title += " (#{release_group.desc})" if !release_group.desc.empty?
+    rel_date = release_group.first_release_date.strftime('%Y-%m-%d')
     add_time = new_artist ? 0 : Time.now.to_i
     db.execute('INSERT INTO ReleaseGroups ' +
                '(ReleaseGroupId, ArtistId, Title, Type, ReleaseDate, AddTime) ' +
                'VALUES(?, ?, ?, ?, ?, ?)',
-               release_group.id, artist_id, title, release_group.type, release_group.first_release_date.strftime('%Y-%m-%d'), add_time)
-    $logger.info("Added release group \"#{title}\" for artist #{artist_name}")
+               release_group.id, artist_id, title, release_group.type, rel_date, add_time)
+    $logger.info("Added \"#{title}\" for #{artist_name} (#{release_group.type} on #{rel_date})")
     known_release_group_ids << release_group.id
   end
 end
