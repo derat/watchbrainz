@@ -68,6 +68,23 @@ def init_db(db)
   db.execute <<-EOF
     CREATE INDEX AddTime ON ReleaseGroups (AddTime)
     EOF
+  db.execute <<-EOF
+    CREATE TABLE Config (
+      FeedFile VARCHAR(256) NOT NULL,
+      FeedUrl VARCHAR(2048) NOT NULL)
+    EOF
+  db.execute <<-EOF
+    INSERT INTO Config VALUES('', '')
+    EOF
+end
+
+def read_config(db)
+  db.get_first_row('SELECT FeedFile, FeedUrl FROM Config')
+end
+
+def write_config(db, feed_file, feed_url)
+  db.execute('UPDATE Config SET FeedFile = ?', feed_file) if !feed_file.empty?
+  db.execute('UPDATE Config SET FeedUrl = ?', feed_url) if !feed_url.empty?
 end
 
 def add_artist(db, artist_name)
@@ -141,7 +158,7 @@ def get_all_new_releases(db)
   db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1') {|row| get_new_releases_for_artist(db, row[0], row[1], false) }
 end
 
-def write_feed(db, filename, feed_url)
+def write_feed(db, feed_file, feed_url)
   # Using RSS 1.0 instead of Atom because Ruby's rss module has close to
   # zero documentation and is unreadable/uncommented, and the only example
   # I can find on the Web of attaching content to an item involves patching
@@ -200,7 +217,7 @@ def write_feed(db, filename, feed_url)
       end
     end
   end
-  File.open(filename, 'w') {|f| f.write(rss) }
+  File.open(feed_file, 'w') {|f| f.write(rss) }
 end
 
 def read_artists(arg)
@@ -208,8 +225,8 @@ def read_artists(arg)
 end
 
 def main
-  db_filename = 'watchbrainz.db'
-  rss_filename = 'releases.xml'
+  db_filename = File.join(__dir__, 'watchbrainz.db')
+  feed_file = ''
   feed_url = ''
   artists_to_add = []
   artists_to_remove = []
@@ -219,26 +236,44 @@ def main
   opts = OptionParser.new
   opts.banner = "Usage: #$0 [options]"
   opts.on('--add [ARTIST]', 'Artist to add (reads one-per-line from stdin without argument)') {|v| artists_to_add = read_artists(v) }
-  opts.on('--db FILE', 'sqlite3 database filename') {|v| db_filename = v }
-  opts.on('--init', 'Initialize database') { should_init = true }
-  opts.on('--list', 'List active artists') { should_list = true }
-  opts.on('--out FILE', 'File to which RSS data should be written') {|v| rss_filename = v }
+  opts.on('--db FILE', 'SQLite3 database file') {|v| db_filename = v }
+  opts.on('--init', 'Initialize database and exit') { should_init = true }
+  opts.on('--list', 'List active artists and exit') { should_list = true }
   opts.on('--quiet', 'Suppress informational logging') { $logger.level = Logger::WARN }
   opts.on('--remove [ARTIST]', 'Artist to remove (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
-  opts.on('--url URL', 'URL at which the feed will be served') {|v| feed_url = v }
+  opts.on('--set-file FILE', 'Sets file to which RSS data will be written') {|v| feed_file = v }
+  opts.on('--set-url URL', 'Sets URL at which the feed will be served') {|v| feed_url = v }
   opts.parse!
 
-  if !should_list && feed_url.empty?
-    $stderr.puts('Feed URL must be supplied using --url')
-    exit(2)
+  if !should_init && !File.exist?(db_filename)
+    $stderr.puts("#{db_filename} does not exist; re-run with --init to create")
+    exit(1)
   end
 
+  # Make path absolute in case CWD is different when executed by cron.
+  feed_file = File.expand_path(feed_file) if !feed_file.empty?
+
   db = SQLite3::Database.new(db_filename)
-  init_db(db) if should_init
+  if should_init
+    init_db(db)
+    write_config(db, feed_file, feed_url)
+    exit(0)
+  end
 
   if should_list
     list_active_artists(db)
     exit(0)
+  end
+
+  write_config(db, feed_file, feed_url)
+  feed_file, feed_url = read_config(db)
+  if feed_file.empty?
+    $stderr.puts('Feed file must be set using --set-file')
+    exit(2)
+  end
+  if feed_url.empty?
+    $stderr.puts('Feed URL must be set using --set-url')
+    exit(2)
   end
 
   MusicBrainz.configure do |c|
@@ -250,7 +285,7 @@ def main
   artists_to_add.each {|a| add_artist(db, a) }
   artists_to_remove.each {|a| remove_artist(db, a) }
   get_all_new_releases(db) if artists_to_add.empty? && artists_to_remove.empty?
-  write_feed(db, rss_filename, feed_url)
+  write_feed(db, feed_file, feed_url)
 
   db.close
 end
