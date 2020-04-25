@@ -40,7 +40,7 @@ script at the desired frequency, e.g.:
 You can add, remove, and list the artists that will be monitored:
 
 ```sh
-% ./watchbrainz.rb --add 'Weird Al'                                                                                        [~/code/watchbrainz]
+% ./watchbrainz.rb --add 'Weird Al'
 I, [2020-04-25 11:42:04#3477]  INFO -- : Inserted artist "Weird Al" (Person from US 1959-present)
 I, [2020-04-25 11:42:07#3477]  INFO -- : Added "“Weird Al” Yankovic" for Weird Al (Album on 1983-04-26)
 I, [2020-04-25 11:42:07#3477]  INFO -- : Added "“Weird Al” Yankovic in 3‐D" for Weird Al (Album on 1984-02-28)
