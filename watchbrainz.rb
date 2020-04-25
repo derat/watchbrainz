@@ -245,17 +245,17 @@ def main
   opts.on('--set-url URL', 'Sets URL at which the feed will be served') {|v| feed_url = v }
   opts.parse!
 
+  # Make path absolute in case CWD is different when executed by cron.
+  feed_file = File.expand_path(feed_file) if !feed_file.empty?
+
   if !should_init && !File.exist?(db_filename)
     $stderr.puts("#{db_filename} does not exist; re-run with --init to create")
     exit(1)
   end
 
-  # Make path absolute in case CWD is different when executed by cron.
-  feed_file = File.expand_path(feed_file) if !feed_file.empty?
-
   db = SQLite3::Database.new(db_filename)
-  if should_init
-    init_db(db)
+  if should_init || !feed_file.empty? || !feed_url.empty?
+    init_db(db) if should_init
     write_config(db, feed_file, feed_url)
     exit(0)
   end
@@ -265,7 +265,6 @@ def main
     exit(0)
   end
 
-  write_config(db, feed_file, feed_url)
   feed_file, feed_url = read_config(db)
   if feed_file.empty?
     $stderr.puts('Feed file must be set using --set-file')
@@ -286,7 +285,6 @@ def main
   artists_to_remove.each {|a| remove_artist(db, a) }
   get_all_new_releases(db) if artists_to_add.empty? && artists_to_remove.empty?
   write_feed(db, feed_file, feed_url)
-
   db.close
 end
 
