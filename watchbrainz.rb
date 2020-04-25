@@ -15,9 +15,8 @@ require 'sqlite3'
 require 'time'
 require 'uri'
 
+# Maximum number of items to include in the feed.
 FEED_SIZE = 20
-
-FEED_URL = 'https://dynamic.erat.org/rss/music.xml'
 
 # Skip release groups released more than this many days in the past.
 MAX_AGE_DAYS = 5 * 365
@@ -142,18 +141,17 @@ def get_all_new_releases(db)
   db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1') {|row| get_new_releases_for_artist(db, row[0], row[1], false) }
 end
 
-def write_feed(db, filename)
+def write_feed(db, filename, feed_url)
   # Using RSS 1.0 instead of Atom because Ruby's rss module has close to
   # zero documentation and is unreadable/uncommented, and the only example
   # I can find on the Web of attaching content to an item involves patching
   # the module and writing an RSS 1.0 feed.
   rss = RSS::Maker.make('1.0') do |maker|
-    maker.channel.author = 'Daniel Erat'
     maker.channel.updated = time_to_rfc3339(Time.now)
     maker.channel.title = 'New Music Releases'
-    maker.channel.link = FEED_URL
+    maker.channel.link = feed_url
     maker.channel.description = 'Release groups recently added to MusicBrainz'
-    maker.channel.id = FEED_URL
+    maker.channel.id = feed_url
     maker.channel.about = 'Seriously, "about" is a required field in RSS 1.0?'
 
     db.execute('SELECT a.ArtistId, a.Name, r.ReleaseGroupId, r.Title, r.Type, r.ReleaseDate, r.AddTime ' +
@@ -195,9 +193,9 @@ def write_feed(db, filename)
 
     if maker.items.empty?
       maker.items.new_item do |item|
-        item.id = FEED_URL
+        item.id = feed_url
         item.title = "No releases yet"
-        item.link = FEED_URL
+        item.link = feed_url
         item.updated = time_to_rfc3339(Time.now)
       end
     end
@@ -212,6 +210,7 @@ end
 def main
   db_filename = 'watchbrainz.db'
   rss_filename = 'releases.xml'
+  feed_url = ''
   artists_to_add = []
   artists_to_remove = []
   should_init = false
@@ -226,12 +225,12 @@ def main
   opts.on('--out FILE', 'File to which RSS data should be written') {|v| rss_filename = v }
   opts.on('--quiet', 'Suppress informational logging') { $logger.level = Logger::WARN }
   opts.on('--remove [ARTIST]', 'Artist to remove (reads one-per-line from stdin without argument)') {|v| artists_to_remove = read_artists(v) }
+  opts.on('--url URL', 'URL at which the feed will be served') {|v| feed_url = v }
   opts.parse!
 
-  MusicBrainz.configure do |c|
-    c.app_name = 'watchbrainz'
-    c.app_version = '0.1'
-    c.contact = 'dan@erat.org'
+  if !should_list && feed_url.empty?
+    $stderr.puts('Feed URL must be supplied using --url')
+    exit(2)
   end
 
   db = SQLite3::Database.new(db_filename)
@@ -242,10 +241,16 @@ def main
     exit(0)
   end
 
+  MusicBrainz.configure do |c|
+    c.app_name = 'watchbrainz'
+    c.app_version = '0.1'
+    c.contact = 'dan@erat.org'
+  end
+
   artists_to_add.each {|a| add_artist(db, a) }
   artists_to_remove.each {|a| remove_artist(db, a) }
   get_all_new_releases(db) if artists_to_add.empty? && artists_to_remove.empty?
-  write_feed(db, rss_filename)
+  write_feed(db, rss_filename, feed_url)
 
   db.close
 end
