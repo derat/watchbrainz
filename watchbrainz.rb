@@ -190,7 +190,7 @@ def write_feed(db, feed_file, feed_url)
         "&dates=#{release_date_str_no_dash}/#{release_date_end_str_no_dash}" +
         "&details=" + URI.escape("#{release_group_url}") +
         "&location=&trp=false&sprop=&sprop=name:\" target=\"_blank\">" +
-        "<img src=\"//www.google.com/calendar/images/ext/gc_button1.gif\" border=0></a>"
+        "Add to Google Calendar</a></p>"
 
       maker.items.new_item do |item|
         item.id = release_group_id
