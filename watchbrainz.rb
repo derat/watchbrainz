@@ -101,6 +101,13 @@ def add_artist(db, artist_name)
 
   artist = MusicBrainz::Artist.find_by_name(artist_name)
   sleep(REQUEST_DELAY_SEC)
+
+  # Fall back to searching by ID.
+  if !artist
+    artist = MusicBrainz::Artist.find(artist_name)
+    sleep(REQUEST_DELAY_SEC)
+  end
+
   if !artist
     $logger.warn("Unable to find artist \"#{artist_name}\"")
     return false
