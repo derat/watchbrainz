@@ -202,9 +202,9 @@ def write_feed(db, feed_file, feed_url)
 
       calendar_link = date_is_unset?(release_date) || release_date < Date.today ? '' :
         "<p><a href=\"http://www.google.com/calendar/event?action=TEMPLATE" +
-        "&text=" + URI.escape("#{name} - #{title}") +
+        "&text=" + URI.encode_www_form_component("#{name} - #{title}") +
         "&dates=#{release_date_str_no_dash}/#{release_date_end_str_no_dash}" +
-        "&details=" + URI.escape("#{release_group_url}") +
+        "&details=" + URI.encode_www_form_component("#{release_group_url}") +
         "&location=&trp=false&sprop=&sprop=name:\" target=\"_blank\">" +
         "Add to Google Calendar</a></p>"
 
