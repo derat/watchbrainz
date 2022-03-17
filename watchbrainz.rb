@@ -24,6 +24,10 @@ MAX_AGE_DAYS = 5 * 365
 # Maximum number of retries per artist.
 NUM_RETRIES = 3
 
+# Time to sleep between requests.
+# See https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting.
+REQUEST_DELAY_SEC = 1
+
 $logger = Logger.new($stderr)
 $logger.datetime_format = '%Y-%m-%d %H:%M:%S'
 
@@ -96,6 +100,7 @@ def add_artist(db, artist_name)
   end
 
   artist = MusicBrainz::Artist.find_by_name(artist_name)
+  sleep(REQUEST_DELAY_SEC)
   if !artist
     $logger.warn("Unable to find artist \"#{artist_name}\"")
     return false
@@ -129,6 +134,7 @@ def get_new_releases_for_artist(db, artist_id, artist_name, new_artist)
   NUM_RETRIES.times do
     begin
       artist = MusicBrainz::Artist.find(artist_id)
+      sleep(REQUEST_DELAY_SEC)
     rescue Exception
     end
     break if artist && artist.release_groups
@@ -155,7 +161,9 @@ def get_new_releases_for_artist(db, artist_id, artist_name, new_artist)
 end
 
 def get_all_new_releases(db)
-  db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1') {|row| get_new_releases_for_artist(db, row[0], row[1], false) }
+  db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1') do |row|
+    get_new_releases_for_artist(db, row[0], row[1], false)
+  end
 end
 
 def write_feed(db, feed_file, feed_url)
