@@ -43,8 +43,9 @@ def get_year(date)
   date_is_unset?(date) ? 'present' : date.year.to_s
 end
 
-def get_artist_id_from_database(db, artist_name)
-  db.execute('SELECT ArtistId FROM Artists WHERE Name = ?', artist_name).each {|row| return row[0] }
+def get_artist_id_from_database(db, artist_name_or_id)
+  db.execute('SELECT ArtistId FROM Artists WHERE Name = ? OR ArtistId = ?',
+             artist_name_or_id, artist_name_or_id).each {|row| return row[0] }
   nil
 end
 
@@ -127,7 +128,7 @@ def remove_artist(db, artist_name)
   if !artist_id
     $logger.warn("Artist \"#{artist_name}\" not present in database")
   else
-    db.execute('UPDATE Artists SET Active = 0 WHERE Name = ?', artist_name)
+    db.execute('UPDATE Artists SET Active = 0 WHERE ArtistId = ?', artist_id)
     $logger.info("Set artist \"#{artist_name}\" to inactive")
   end
 end
