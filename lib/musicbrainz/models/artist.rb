@@ -9,16 +9,30 @@ module MusicBrainz
     field :urls, Hash
 
     def release_groups
-      @release_groups ||= client.load(:release_group, { artist: id, inc: [:url_rels] }, {
-        binding: :artist_release_groups,
-        create_models: :release_group,
-        sort: :first_release_date
-      }) unless @id.nil?
+      return nil if @id.nil?
+
+      if not @release_groups
+        @release_groups = []
+        offset = 0
+        loop do
+          groups = client.load(:release_group, { artist: id, limit: 100, offset: offset }, {
+            binding: :artist_release_groups,
+            create_models: :release_group,
+            sort: :first_release_date,
+          })
+          break if groups.empty?
+          @release_groups += groups
+          offset += groups.size
+          sleep(1) # https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting
+        end
+      end
+
+      @release_groups
     end
 
     class << self
       def find(id)
-        client.load(:artist, { id: id, inc: [:url_rels] }, {
+        client.load(:artist, { id: id }, {
           binding: :artist,
           create_model: :artist
         })
