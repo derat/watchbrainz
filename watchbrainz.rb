@@ -114,12 +114,12 @@ def add_artist(db, artist_name)
     return false
   end
 
-  db.execute('INSERT INTO Artists(ArtistId, Name, Active) VALUES(?, ?, 1)', artist.id, artist_name)
-  $logger.info("Inserted artist \"#{artist_name}\" (#{artist.type} from #{artist.country} " +
+  db.execute('INSERT INTO Artists(ArtistId, Name, Active) VALUES(?, ?, 1)', artist.id, artist.name)
+  $logger.info("Inserted artist \"#{artist.name}\" (#{artist.type} from #{artist.country} " +
                "#{get_year(artist.date_begin)}-#{get_year(artist.date_end)})")
 
   # Insert the artist's existing releases with a 0 timestamp so they won't drown out any new releases from other artists.
-  get_new_releases_for_artist(db, artist.id, artist_name, true)
+  get_new_releases_for_artist(db, artist.id, artist.name, true)
   true
 end
 
