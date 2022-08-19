@@ -169,9 +169,10 @@ def get_new_releases_for_artist(db, artist_id, artist_name, new_artist)
 end
 
 def get_all_new_releases(db)
-  db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1') do |row|
-    get_new_releases_for_artist(db, row[0], row[1], false)
-  end
+  # Collect the artists first to try to avoid
+  # "database is locked (SQLite3::BusyException)" when inserting later.
+  rows = db.execute('SELECT ArtistId, Name FROM Artists WHERE Active = 1').map {|r| [r[0], r[1]] }
+  rows.each {|row| get_new_releases_for_artist(db, row[0], row[1], false) }
 end
 
 def write_feed(db, feed_file, feed_url)
@@ -192,7 +193,8 @@ def write_feed(db, feed_file, feed_url)
                'WHERE a.Active = 1 ' +
                'AND r.ReleaseDate >= ? ' +
                'ORDER BY r.AddTime DESC ' +
-               'LIMIT ?', (Date.today() - MAX_AGE_DAYS).to_s, FEED_SIZE).each do |artist_id, name, release_group_id, title, type, release_date, add_time|
+               'LIMIT ?', (Date.today() - MAX_AGE_DAYS).to_s, FEED_SIZE
+              ).each do |artist_id, name, release_group_id, title, type, release_date, add_time|
       release_date = Date.parse(release_date)
       release_date_str = date_is_unset?(release_date) ? 'Unknown' : release_date.strftime('%Y-%m-%d')
       release_date_str_no_dash = date_is_unset?(release_date) ? 'Unknown' : release_date.strftime('%Y%m%d')
