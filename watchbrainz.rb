@@ -296,7 +296,7 @@ def main
   MusicBrainz.configure do |c|
     c.app_name = 'watchbrainz'
     c.app_version = '0.1'
-    c.contact = 'dan@erat.org'
+    c.contact = 'https://github.com/derat/watchbrainz'
   end
 
   artists_to_add.each {|a| add_artist(db, a) }
